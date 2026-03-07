@@ -2,13 +2,21 @@
   "name": "cutlist-desktop",
   "version": "1.0.0",
   "description": "Desktop wrapper for The Cut List",
+  "author": "Zachary Weyland",
   "main": "main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zachweyland/TheCutList_Desktop.git"
+  },
   "scripts": {
     "start": "electron .",
     "build-mac": "electron-builder --mac",
-    "build-win": "electron-builder --win"
+    "build-win": "electron-builder --win",
+    "publish-mac": "electron-builder --mac --publish always",
+    "publish-win": "electron-builder --win --publish always"
   },
   "dependencies": {
+    "electron-updater": "^6.6.2",
     "electron-window-state": "^5.0.3"
   },
   "devDependencies": {

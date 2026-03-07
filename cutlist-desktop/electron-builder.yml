@@ -1,12 +1,19 @@
 appId: com.sixteen33.cutlist
 productName: The Cut List
+electronUpdaterCompatibility: ">=2.16"
 directories:
   output: dist
 files:
   - "**/*"
+  - "!dist{,/**}"
+publish:
+  - provider: github
+    owner: zachweyland
+    repo: TheCutList_Desktop
 mac:
   target:
     - dmg
+    - zip
   icon: icon.png
 win:
   target:

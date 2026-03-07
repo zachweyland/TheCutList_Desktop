@@ -1,8 +1,11 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const windowStateKeeper = require('electron-window-state');
 
 const APP_TITLE = 'The Cut List';
 const REMOTE_URL = 'https://cutlist.sixteen33.com';
+const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+let autoUpdaterConfigured = false;
 
 function offlinePageUrl() {
   const html = `<!DOCTYPE html>
@@ -121,12 +124,61 @@ function createWindow() {
   return mainWindow;
 }
 
+function setupAutoUpdater(mainWindow) {
+  if (!app.isPackaged || autoUpdaterConfigured) {
+    return;
+  }
+
+  autoUpdaterConfigured = true;
+
+  let promptingForInstall = false;
+
+  autoUpdater.on('error', (error) => {
+    console.error('Auto-update failed:', error == null ? error : error.message);
+  });
+
+  autoUpdater.on('update-downloaded', async () => {
+    if (promptingForInstall || mainWindow.isDestroyed()) {
+      return;
+    }
+
+    promptingForInstall = true;
+
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      buttons: ['Restart Now', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+      title: APP_TITLE,
+      message: 'An update for The Cut List has been downloaded.',
+      detail: 'Restart the app to install the latest version.'
+    });
+
+    promptingForInstall = false;
+
+    if (response === 0) {
+      autoUpdater.quitAndInstall();
+    }
+  });
+
+  const checkForUpdates = () => {
+    autoUpdater.checkForUpdatesAndNotify().catch((error) => {
+      console.error('Unable to check for updates:', error == null ? error : error.message);
+    });
+  };
+
+  checkForUpdates();
+  setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
+}
+
 app.whenReady().then(() => {
-  createWindow();
+  const mainWindow = createWindow();
+  setupAutoUpdater(mainWindow);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+      const recreatedWindow = createWindow();
+      setupAutoUpdater(recreatedWindow);
     }
   });
 });
