@@ -1,0 +1,14 @@
+appId: com.sixteen33.cutlist
+productName: The Cut List
+directories:
+  output: dist
+files:
+  - "**/*"
+mac:
+  target:
+    - dmg
+  icon: icon.png
+win:
+  target:
+    - nsis
+  icon: icon.png

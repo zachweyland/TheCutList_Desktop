@@ -1,0 +1,18 @@
+{
+  "name": "cutlist-desktop",
+  "version": "1.0.0",
+  "description": "Desktop wrapper for The Cut List",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build-mac": "electron-builder --mac",
+    "build-win": "electron-builder --win"
+  },
+  "dependencies": {
+    "electron-window-state": "^5.0.3"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^26.0.12"
+  }
+}
