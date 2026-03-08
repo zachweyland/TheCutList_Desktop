@@ -11,6 +11,62 @@ let mainWindow = null;
 let manualUpdateCheck = false;
 let runUpdateCheck = () => Promise.resolve();
 
+function injectDesktopChrome(browserWindow) {
+  const code = `
+    (() => {
+      if (window.location.origin !== ${JSON.stringify(APP_ORIGIN)}) {
+        return;
+      }
+
+      const existingStrip = document.getElementById('cutlist-desktop-drag-strip');
+
+      if (existingStrip) {
+        return;
+      }
+
+      const header =
+        document.querySelector('header') ||
+        document.querySelector('[role="banner"]') ||
+        document.querySelector('nav');
+
+      if (!header) {
+        return;
+      }
+
+      const computedHeaderStyle = window.getComputedStyle(header);
+      if (computedHeaderStyle.position === 'static') {
+        header.style.position = 'relative';
+      }
+
+      const strip = document.createElement('div');
+      strip.id = 'cutlist-desktop-drag-strip';
+      strip.setAttribute('aria-hidden', 'true');
+      strip.style.position = 'absolute';
+      strip.style.left = '84px';
+      strip.style.top = '0';
+      strip.style.width = '160px';
+      strip.style.height = '20px';
+      strip.style.zIndex = '2147483647';
+      strip.style.pointerEvents = 'auto';
+      strip.style.webkitAppRegion = 'drag';
+      strip.style.background = 'transparent';
+
+      header.prepend(strip);
+    })();
+  `;
+
+  const inject = () => {
+    browserWindow.webContents.executeJavaScript(code).catch(() => {});
+  };
+
+  browserWindow.webContents.on('did-finish-load', inject);
+  browserWindow.webContents.on('did-navigate-in-page', inject);
+  browserWindow.once('closed', () => {
+    browserWindow.webContents.removeListener('did-finish-load', inject);
+    browserWindow.webContents.removeListener('did-navigate-in-page', inject);
+  });
+}
+
 function offlinePageUrl() {
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -267,6 +323,15 @@ function createWindow() {
     height: mainWindowState.height,
     resizable: true,
     title: APP_TITLE,
+    ...(process.platform === 'darwin'
+      ? {
+          titleBarStyle: 'hiddenInset',
+          trafficLightPosition: {
+            x: 16,
+            y: 16
+          }
+        }
+      : {}),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true
@@ -275,6 +340,7 @@ function createWindow() {
 
   mainWindowState.manage(browserWindow);
   setupExternalLinkHandling(browserWindow);
+  injectDesktopChrome(browserWindow);
 
   browserWindow.on('page-title-updated', (event) => {
     event.preventDefault();

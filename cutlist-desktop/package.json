@@ -1,6 +1,6 @@
 {
   "name": "cutlist-desktop",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Desktop wrapper for The Cut List",
   "author": "Zachary Weyland",
   "main": "main.js",
