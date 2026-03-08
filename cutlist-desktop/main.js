@@ -12,6 +12,7 @@ let manualUpdateCheck = false;
 let runUpdateCheck = () => Promise.resolve();
 
 function injectDesktopChrome(browserWindow) {
+  const { webContents } = browserWindow;
   const code = `
     (() => {
       if (window.location.origin !== ${JSON.stringify(APP_ORIGIN)}) {
@@ -56,14 +57,18 @@ function injectDesktopChrome(browserWindow) {
   `;
 
   const inject = () => {
-    browserWindow.webContents.executeJavaScript(code).catch(() => {});
+    if (browserWindow.isDestroyed() || webContents.isDestroyed()) {
+      return;
+    }
+
+    webContents.executeJavaScript(code).catch(() => {});
   };
 
-  browserWindow.webContents.on('did-finish-load', inject);
-  browserWindow.webContents.on('did-navigate-in-page', inject);
-  browserWindow.once('closed', () => {
-    browserWindow.webContents.removeListener('did-finish-load', inject);
-    browserWindow.webContents.removeListener('did-navigate-in-page', inject);
+  webContents.on('did-finish-load', inject);
+  webContents.on('did-navigate-in-page', inject);
+  browserWindow.once('close', () => {
+    webContents.removeListener('did-finish-load', inject);
+    webContents.removeListener('did-navigate-in-page', inject);
   });
 }
 
@@ -291,7 +296,9 @@ function buildAppMenu() {
 }
 
 function setupExternalLinkHandling(browserWindow) {
-  browserWindow.webContents.setWindowOpenHandler(({ url }) => {
+  const { webContents } = browserWindow;
+
+  webContents.setWindowOpenHandler(({ url }) => {
     if (isAppUrl(url)) {
       return { action: 'allow' };
     }
@@ -300,7 +307,7 @@ function setupExternalLinkHandling(browserWindow) {
     return { action: 'deny' };
   });
 
-  browserWindow.webContents.on('will-navigate', (event, url) => {
+  webContents.on('will-navigate', (event, url) => {
     if (isAppUrl(url)) {
       return;
     }
@@ -338,9 +345,14 @@ function createWindow() {
     }
   });
 
+  const { webContents } = browserWindow;
   mainWindowState.manage(browserWindow);
   setupExternalLinkHandling(browserWindow);
   injectDesktopChrome(browserWindow);
+
+  if (process.platform === 'darwin') {
+    browserWindow.setWindowButtonVisibility(true);
+  }
 
   browserWindow.on('page-title-updated', (event) => {
     event.preventDefault();
@@ -376,9 +388,12 @@ function createWindow() {
     showOfflinePage();
   };
 
-  browserWindow.webContents.on('did-fail-load', handleLoadFailure);
-  browserWindow.once('closed', () => {
-    browserWindow.webContents.removeListener('did-fail-load', handleLoadFailure);
+  webContents.on('did-fail-load', handleLoadFailure);
+  browserWindow.once('close', () => {
+    if (!webContents.isDestroyed()) {
+      webContents.removeListener('did-fail-load', handleLoadFailure);
+    }
+
     if (mainWindow === browserWindow) {
       mainWindow = null;
     }
