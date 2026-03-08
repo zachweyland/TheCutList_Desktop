@@ -19,10 +19,30 @@ function injectDesktopChrome(browserWindow) {
         return;
       }
 
-      const existingStrip = document.getElementById('cutlist-desktop-drag-strip');
+      const styleId = 'cutlist-desktop-chrome-style';
+      if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = \`
+          .cutlist-desktop-draggable-header {
+            -webkit-app-region: drag;
+          }
 
-      if (existingStrip) {
-        return;
+          .cutlist-desktop-draggable-header a,
+          .cutlist-desktop-draggable-header button,
+          .cutlist-desktop-draggable-header input,
+          .cutlist-desktop-draggable-header select,
+          .cutlist-desktop-draggable-header textarea,
+          .cutlist-desktop-draggable-header summary,
+          .cutlist-desktop-draggable-header label,
+          .cutlist-desktop-draggable-header [role="button"],
+          .cutlist-desktop-draggable-header img,
+          .cutlist-desktop-draggable-header svg {
+            -webkit-app-region: no-drag;
+          }
+        \`;
+
+        document.head.append(style);
       }
 
       const header =
@@ -34,25 +54,9 @@ function injectDesktopChrome(browserWindow) {
         return;
       }
 
-      const computedHeaderStyle = window.getComputedStyle(header);
-      if (computedHeaderStyle.position === 'static') {
-        header.style.position = 'relative';
+      if (!header.classList.contains('cutlist-desktop-draggable-header')) {
+        header.classList.add('cutlist-desktop-draggable-header');
       }
-
-      const strip = document.createElement('div');
-      strip.id = 'cutlist-desktop-drag-strip';
-      strip.setAttribute('aria-hidden', 'true');
-      strip.style.position = 'absolute';
-      strip.style.left = '84px';
-      strip.style.top = '0';
-      strip.style.width = '160px';
-      strip.style.height = '20px';
-      strip.style.zIndex = '2147483647';
-      strip.style.pointerEvents = 'auto';
-      strip.style.webkitAppRegion = 'drag';
-      strip.style.background = 'transparent';
-
-      header.prepend(strip);
     })();
   `;
 
