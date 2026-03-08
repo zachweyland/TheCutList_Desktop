@@ -1,11 +1,15 @@
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, Menu, dialog, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const windowStateKeeper = require('electron-window-state');
 
 const APP_TITLE = 'The Cut List';
 const REMOTE_URL = 'https://cutlist.sixteen33.com';
+const APP_ORIGIN = new URL(REMOTE_URL).origin;
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 let autoUpdaterConfigured = false;
+let mainWindow = null;
+let manualUpdateCheck = false;
+let runUpdateCheck = () => Promise.resolve();
 
 function offlinePageUrl() {
   const html = `<!DOCTYPE html>
@@ -41,8 +45,23 @@ function offlinePageUrl() {
       }
 
       p {
-        margin: 0;
+        margin: 0 0 1.5rem;
         line-height: 1.5;
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 0.85rem 1.2rem;
+        font: inherit;
+        font-weight: 600;
+        color: #fff;
+        background: #1f7a57;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #176044;
       }
     </style>
   </head>
@@ -50,11 +69,189 @@ function offlinePageUrl() {
     <main>
       <h1>${APP_TITLE}</h1>
       <p>Unable to connect to The Cut List. Check your internet connection.</p>
+      <button id="retry" type="button">Retry</button>
     </main>
+    <script>
+      const retry = () => {
+        window.location.replace(${JSON.stringify(REMOTE_URL)});
+      };
+
+      document.getElementById('retry').addEventListener('click', retry);
+      window.addEventListener('online', retry);
+    </script>
   </body>
 </html>`;
 
   return `data:text/html;charset=UTF-8,${encodeURIComponent(html)}`;
+}
+
+function isAppUrl(urlString) {
+  if (!urlString) {
+    return false;
+  }
+
+  if (urlString.startsWith('data:text/html')) {
+    return true;
+  }
+
+  try {
+    return new URL(urlString).origin === APP_ORIGIN;
+  } catch {
+    return false;
+  }
+}
+
+function withFocusedWindow(action) {
+  const focusedWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+
+  if (!focusedWindow || focusedWindow.isDestroyed()) {
+    return;
+  }
+
+  action(focusedWindow);
+}
+
+function buildAppMenu() {
+  const template = [
+    ...(process.platform === 'darwin'
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: 'about' },
+              { type: 'separator' },
+              {
+                label: 'Check for Updates',
+                click: () => {
+                  runUpdateCheck({ manual: true });
+                }
+              },
+              { type: 'separator' },
+              { role: 'services' },
+              { type: 'separator' },
+              { role: 'hide' },
+              { role: 'hideOthers' },
+              { role: 'unhide' },
+              { type: 'separator' },
+              { role: 'quit' }
+            ]
+          }
+        ]
+      : []),
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Open in Browser',
+          accelerator: 'CmdOrCtrl+Shift+O',
+          click: () => {
+            shell.openExternal(REMOTE_URL).catch(() => {});
+          }
+        },
+        ...(process.platform === 'darwin' ? [] : [{ type: 'separator' }, { role: 'quit' }])
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        {
+          label: 'Back',
+          accelerator: 'Alt+Left',
+          click: () => {
+            withFocusedWindow((window) => {
+              if (window.webContents.canGoBack()) {
+                window.webContents.goBack();
+              }
+            });
+          }
+        },
+        {
+          label: 'Forward',
+          accelerator: 'Alt+Right',
+          click: () => {
+            withFocusedWindow((window) => {
+              if (window.webContents.canGoForward()) {
+                window.webContents.goForward();
+              }
+            });
+          }
+        },
+        {
+          label: 'Reload',
+          accelerator: 'CmdOrCtrl+R',
+          click: () => {
+            withFocusedWindow((window) => {
+              if (window.webContents.getURL().startsWith('data:text/html')) {
+                window.loadURL(REMOTE_URL).catch(() => {});
+                return;
+              }
+
+              window.webContents.reload();
+            });
+          }
+        },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' }
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [{ role: 'minimize' }, { role: 'zoom' }, ...(process.platform === 'darwin' ? [{ role: 'front' }] : [{ role: 'close' }])]
+    },
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'Check for Updates',
+          click: () => {
+            runUpdateCheck({ manual: true });
+          }
+        },
+        {
+          label: 'Open in Browser',
+          click: () => {
+            shell.openExternal(REMOTE_URL).catch(() => {});
+          }
+        }
+      ]
+    }
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+function setupExternalLinkHandling(browserWindow) {
+  browserWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isAppUrl(url)) {
+      return { action: 'allow' };
+    }
+
+    shell.openExternal(url).catch(() => {});
+    return { action: 'deny' };
+  });
+
+  browserWindow.webContents.on('will-navigate', (event, url) => {
+    if (isAppUrl(url)) {
+      return;
+    }
+
+    event.preventDefault();
+    shell.openExternal(url).catch(() => {});
+  });
 }
 
 function createWindow() {
@@ -63,7 +260,7 @@ function createWindow() {
     defaultHeight: 800
   });
 
-  const mainWindow = new BrowserWindow({
+  const browserWindow = new BrowserWindow({
     x: mainWindowState.x,
     y: mainWindowState.y,
     width: mainWindowState.width,
@@ -76,22 +273,23 @@ function createWindow() {
     }
   });
 
-  mainWindowState.manage(mainWindow);
+  mainWindowState.manage(browserWindow);
+  setupExternalLinkHandling(browserWindow);
 
-  mainWindow.on('page-title-updated', (event) => {
+  browserWindow.on('page-title-updated', (event) => {
     event.preventDefault();
-    mainWindow.setTitle(APP_TITLE);
+    browserWindow.setTitle(APP_TITLE);
   });
 
   let showingOfflinePage = false;
 
   const showOfflinePage = () => {
-    if (showingOfflinePage || mainWindow.isDestroyed()) {
+    if (showingOfflinePage || browserWindow.isDestroyed()) {
       return;
     }
 
     showingOfflinePage = true;
-    mainWindow.loadURL(offlinePageUrl()).catch(() => {});
+    browserWindow.loadURL(offlinePageUrl()).catch(() => {});
   };
 
   const handleLoadFailure = (
@@ -112,19 +310,47 @@ function createWindow() {
     showOfflinePage();
   };
 
-  mainWindow.webContents.on('did-fail-load', handleLoadFailure);
-  mainWindow.once('closed', () => {
-    mainWindow.webContents.removeListener('did-fail-load', handleLoadFailure);
+  browserWindow.webContents.on('did-fail-load', handleLoadFailure);
+  browserWindow.once('closed', () => {
+    browserWindow.webContents.removeListener('did-fail-load', handleLoadFailure);
+    if (mainWindow === browserWindow) {
+      mainWindow = null;
+    }
   });
 
-  mainWindow.loadURL(REMOTE_URL).catch(() => {
+  browserWindow.loadURL(REMOTE_URL).catch(() => {
     showOfflinePage();
   });
 
-  return mainWindow;
+  return browserWindow;
 }
 
-function setupAutoUpdater(mainWindow) {
+function setupAutoUpdater() {
+  runUpdateCheck = ({ manual = false } = {}) => {
+    if (!app.isPackaged) {
+      if (manual) {
+        dialog.showMessageBox({
+          type: 'info',
+          title: APP_TITLE,
+          message: 'Update checks are only available in packaged builds.'
+        }).catch(() => {});
+      }
+
+      return Promise.resolve();
+    }
+
+    manualUpdateCheck = manual;
+
+    return autoUpdater.checkForUpdatesAndNotify().catch((error) => {
+      manualUpdateCheck = false;
+      console.error('Unable to check for updates:', error == null ? error : error.message);
+
+      if (manual) {
+        dialog.showErrorBox(APP_TITLE, 'Unable to check for updates right now.');
+      }
+    });
+  };
+
   if (!app.isPackaged || autoUpdaterConfigured) {
     return;
   }
@@ -134,17 +360,37 @@ function setupAutoUpdater(mainWindow) {
   let promptingForInstall = false;
 
   autoUpdater.on('error', (error) => {
+    manualUpdateCheck = false;
     console.error('Auto-update failed:', error == null ? error : error.message);
   });
 
+  autoUpdater.on('update-available', () => {
+    manualUpdateCheck = false;
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    if (!manualUpdateCheck) {
+      return;
+    }
+
+    manualUpdateCheck = false;
+    dialog.showMessageBox({
+      type: 'info',
+      title: APP_TITLE,
+      message: 'The Cut List is up to date.'
+    }).catch(() => {});
+  });
+
   autoUpdater.on('update-downloaded', async () => {
-    if (promptingForInstall || mainWindow.isDestroyed()) {
+    const activeWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+
+    if (promptingForInstall || !activeWindow || activeWindow.isDestroyed()) {
       return;
     }
 
     promptingForInstall = true;
 
-    const { response } = await dialog.showMessageBox(mainWindow, {
+    const { response } = await dialog.showMessageBox(activeWindow, {
       type: 'info',
       buttons: ['Restart Now', 'Later'],
       defaultId: 0,
@@ -162,9 +408,7 @@ function setupAutoUpdater(mainWindow) {
   });
 
   const checkForUpdates = () => {
-    autoUpdater.checkForUpdatesAndNotify().catch((error) => {
-      console.error('Unable to check for updates:', error == null ? error : error.message);
-    });
+    runUpdateCheck();
   };
 
   checkForUpdates();
@@ -172,13 +416,14 @@ function setupAutoUpdater(mainWindow) {
 }
 
 app.whenReady().then(() => {
-  const mainWindow = createWindow();
-  setupAutoUpdater(mainWindow);
+  buildAppMenu();
+  mainWindow = createWindow();
+  setupAutoUpdater();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      const recreatedWindow = createWindow();
-      setupAutoUpdater(recreatedWindow);
+      mainWindow = createWindow();
+      setupAutoUpdater();
     }
   });
 });
