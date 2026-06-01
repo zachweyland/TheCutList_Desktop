@@ -1,12 +1,12 @@
 {
   "name": "cutlist-desktop",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "description": "Desktop wrapper for The Cut List",
   "author": "Zachary Weyland",
   "main": "main.js",
   "repository": {
     "type": "git",
-    "url": "https://git.sixteen33.com/zachweyland/TheCutList_Desktop.git"
+    "url": "https://github.com/zachweyland/TheCutList_Desktop.git"
   },
   "scripts": {
     "start": "electron .",
