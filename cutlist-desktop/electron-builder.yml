@@ -15,6 +15,9 @@ mac:
     - dmg
     - zip
   icon: icon.png
+  hardenedRuntime: false
+  entitlements: null
+  category: public.app-category.utilities
 win:
   target:
     - nsis

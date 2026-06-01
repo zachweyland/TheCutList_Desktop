@@ -26,4 +26,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd cutlist-desktop
-          npm run build-mac -- --publish always
+          npm run build-mac
+
+      - name: Publish to GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd cutlist-desktop
+          npx electron-builder --mac --publish always
