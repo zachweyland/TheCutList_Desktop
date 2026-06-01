@@ -6,7 +6,7 @@
   "main": "main.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zachweyland/TheCutList_Desktop.git"
+    "url": "https://git.sixteen33.com/zachweyland/TheCutList_Desktop.git"
   },
   "scripts": {
     "start": "electron .",
@@ -20,7 +20,7 @@
     "electron-window-state": "^5.0.3"
   },
   "devDependencies": {
-    "electron": "^35.0.0",
-    "electron-builder": "^26.0.12"
+    "electron": "^42.3.0",
+    "electron-builder": "^26.8.1"
   }
 }

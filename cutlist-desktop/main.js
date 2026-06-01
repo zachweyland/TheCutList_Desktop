@@ -336,7 +336,7 @@ function createWindow() {
     title: APP_TITLE,
     ...(process.platform === 'darwin'
       ? {
-          titleBarStyle: 'hiddenInset',
+          titleBarStyle: 'hidden',
           trafficLightPosition: {
             x: 16,
             y: 16
@@ -374,28 +374,22 @@ function createWindow() {
     browserWindow.loadURL(offlinePageUrl()).catch(() => {});
   };
 
-  const handleLoadFailure = (
-    event,
-    errorCode,
-    errorDescription,
-    validatedURL,
-    isMainFrame
-  ) => {
+  const handleLoadFailure = (event, errorCode, errorDescription, url, isMainFrame) => {
     if (!isMainFrame) {
       return;
     }
 
-    if (validatedURL && !validatedURL.startsWith(REMOTE_URL)) {
+    if (url && !url.startsWith(REMOTE_URL)) {
       return;
     }
 
     showOfflinePage();
   };
 
-  webContents.on('did-fail-load', handleLoadFailure);
+  webContents.on('page-failed-navigation', handleLoadFailure);
   browserWindow.once('close', () => {
     if (!webContents.isDestroyed()) {
-      webContents.removeListener('did-fail-load', handleLoadFailure);
+      webContents.removeListener('page-failed-navigation', handleLoadFailure);
     }
 
     if (mainWindow === browserWindow) {
